@@ -135,6 +135,30 @@ async def test_cancellable_wait_future_exception(event_loop):
 
 
 @pytest.mark.asyncio
+async def test_cancellable_wait_gathering_cancelled(event_loop):
+    fut_never_finish = asyncio.Future()
+    gathered = asyncio.gather(fut_never_finish)
+    token = CancelToken('token')
+    token.trigger()
+    with pytest.raises(OperationCancelled):
+        await token.cancellable_wait(gathered, timeout=1)
+    await asyncio.sleep(0)
+    assert gathered.cancelled(), f"instead, maybe an exception was raised: {gathered.exception()!r}"
+    await assert_only_current_task_not_done()
+
+
+@pytest.mark.asyncio
+async def test_cancellable_wait_gathering_timeout(event_loop):
+    fut_never_finish = asyncio.Future()
+    gathered = asyncio.gather(fut_never_finish)
+    with pytest.raises(TimeoutError):
+        await CancelToken('token').cancellable_wait(gathered, timeout=0.01)
+    await asyncio.sleep(0)
+    assert gathered.cancelled(), f"instead, maybe an exception was raised: {gathered.exception()!r}"
+    await assert_only_current_task_not_done()
+
+
+@pytest.mark.asyncio
 async def test_cancellable_wait_cancels_subtasks_when_cancelled(event_loop):
     token = CancelToken('')
     future = asyncio.ensure_future(token.cancellable_wait(asyncio.sleep(2)))
